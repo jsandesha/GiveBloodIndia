@@ -1,0 +1,7 @@
+com/highpeak/gbi/datastore/DataStoreApplication.class
+com/highpeak/gbi/datastore/repository/UserToAddressRepository.class
+com/highpeak/gbi/datastore/model/UserModel.class
+com/highpeak/gbi/datastore/repository/AddressRepository.class
+com/highpeak/gbi/datastore/model/AddressModel.class
+com/highpeak/gbi/datastore/repository/UserModelRepository.class
+com/highpeak/gbi/datastore/model/UserToAddress.class

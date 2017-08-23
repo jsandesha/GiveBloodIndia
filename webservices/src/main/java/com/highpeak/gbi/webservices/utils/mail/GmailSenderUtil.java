@@ -8,6 +8,9 @@ import org.springframework.stereotype.Component;
 import com.highpeak.gbi.webservices.UIResponse.DataException;
 import com.highpeak.gbi.webservices.entities.MailBean;
 
+import java.util.List;
+import java.util.Set;
+
 /**
  * Util class to send e-mail
  * 
@@ -23,8 +26,10 @@ public class GmailSenderUtil {
     {
         try
         {
+            Set<String> to = mailBean.getTo();
+            String[] tos = to.toArray(new String[to.size()]);
             SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setTo(mailBean.getTo());
+            mailMessage.setTo(tos);
             mailMessage.setText(mailBean.getBody());
             mailMessage.setSubject(mailBean.getSubject());
 

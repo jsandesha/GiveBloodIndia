@@ -21,7 +21,7 @@ public class UserController extends AbstractController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UserController.class);
     @Autowired
-    private UserServices homeService;
+    private UserServices userService;
 
     /* @RequestMapping( value = "/user", method = RequestMethod.GET ) public ResponseEntity<?>
      * getUser( @RequestParam Integer id ) { LOGGER.debug("In Controller to fetch user"); UserModel user
@@ -33,7 +33,7 @@ public class UserController extends AbstractController {
         LOGGER.debug("In Controller to register user {}", userDetailsBean.getEmailId());
         try
         {
-            return buildResponse(homeService.registerUser(userDetailsBean));
+            return buildResponse(userService.registerUser(userDetailsBean));
         }
         catch( DataException e )
         {
@@ -41,13 +41,17 @@ public class UserController extends AbstractController {
         }
     }
 
-    /* @RequestMapping( value = "/login", method = RequestMethod.POST ) public ResponseEntity<?>
-     * login( @RequestBody UserDetailsBean userDetailsBean ) { try { return
-     * buildResponse(homeService.loginUser(userDetailsBean)); } catch( DataException e ) { return
-     * buildError(e); } } */
-
-    /* @RequestMapping( "/activateUser" ) public ResponseEntity<?> activateUser( @RequestParam String
-     * code ) { try { return buildResponse(homeService.activateUser(code)); } catch( DataException e ) {
-     * return buildError(e); } } */
+    @RequestMapping(value = "/requestBlood", method = RequestMethod.POST)
+    public ResponseEntity<?> requestForBlood(@RequestBody UserDetailsBean userDetailsBean)
+    {
+        try
+        {
+            return buildResponse(userService.requestBlood(userDetailsBean));
+        }
+        catch( DataException e )
+        {
+            return buildError(e);
+        }
+    }
 
 }

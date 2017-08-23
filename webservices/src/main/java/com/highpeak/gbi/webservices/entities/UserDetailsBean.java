@@ -23,9 +23,20 @@ public class UserDetailsBean {
 
     private String gender;
 
+    /* this is used to capture both donar's address and requester's requested address */
     private List<Address> adresses;
 
     private Long lastBloodDonationDate;
+
+    private Long bloodRequiredDate;
+
+    private Integer numberOfUnits;
+
+    private Boolean termsAndRequestAcceptance;
+
+    private String hospital;
+
+    private String component;
 
     public String getFirstName()
     {
@@ -115,5 +126,51 @@ public class UserDetailsBean {
     public void setLastBloodDonationDate( Long lastBloodDonationDate )
     {
         this.lastBloodDonationDate = lastBloodDonationDate;
+    }
+
+    public Long getBloodRequiredDate()
+    {
+        return bloodRequiredDate;
+    }
+
+    public void setBloodRequiredDate( Long bloodRequiredDate )
+    {
+        this.bloodRequiredDate = bloodRequiredDate;
+    }
+
+    public Integer getNumberOfUnits()
+    {
+        return numberOfUnits;
+    }
+
+    public void setNumberOfUnits( Integer numberOfUnits )
+    {
+        this.numberOfUnits = numberOfUnits;
+    }
+
+    public Boolean getTermsAndRequestAcceptance()
+    {
+        return termsAndRequestAcceptance;
+    }
+
+    public void setTermsAndRequestAcceptance( Boolean termsAndRequestAcceptance )
+    {
+        this.termsAndRequestAcceptance = termsAndRequestAcceptance;
+    }
+
+    public String getHospital() {
+        return hospital;
+    }
+
+    public void setHospital(String hospital) {
+        this.hospital = hospital;
+    }
+
+    public String getComponent() {
+        return component;
+    }
+
+    public void setComponent(String component) {
+        this.component = component;
     }
 }
