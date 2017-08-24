@@ -1,22 +1,29 @@
 package com.highpeak.gbi.webservices.utils.distance;
 
-import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 
-import com.highpeak.gbi.datastore.repository.EmailPhoneRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+
 import com.highpeak.gbi.datastore.model.EmailPhone;
-import com.highpeak.gbi.datastore.repository.UserModelRepository;
-import com.highpeak.gbi.webservices.UIResponse.DataException;
+import com.highpeak.gbi.datastore.repository.EmailPhoneRepository;
 import com.highpeak.gbi.webservices.entities.Address;
+import com.highpeak.gbi.webservices.uiresponse.DataException;
+import com.highpeak.gbi.webservices.utils.constant.Constant;
 
 /**
+ * Utility class which computes radius
+ * 
  * @author sandesha, Created on 23/08/17
  */
 @Component
 public class DistanceUtil {
+
+    private static final Logger logger = LoggerFactory.getLogger(DistanceUtil.class);
 
     @Autowired
     private EmailPhoneRepository userModelRepository;
@@ -26,6 +33,9 @@ public class DistanceUtil {
     {
         try
         {
+            Calendar threeMonthsBack = Calendar.getInstance();
+            threeMonthsBack.add(Calendar.DATE, -3);
+
             Double oldLatitude = address.getLatitude();
             Double oldLongitude = address.getLongitude();
 
@@ -37,22 +47,23 @@ public class DistanceUtil {
             Double maxLon = oldLongitude + coeffLon;
             Double minLon = oldLongitude - coeffLon;
 
-            List<EmailPhone> emailPhoneList = new ArrayList<>();
+            List<EmailPhone> emailPhoneList;
             if( matchingGroup )
             {
                 emailPhoneList = userModelRepository.getUsersInTheRangeWithMatchingGroup(maxLat, minLat, maxLon, minLon,
-                        bloodGroups);
+                        bloodGroups, threeMonthsBack);
             }
             else
             {
-                emailPhoneList = userModelRepository.getAllUsersInTheRange(maxLat, minLat, maxLon, minLon);
+                emailPhoneList = userModelRepository.getAllUsersInTheRange(maxLat, minLat, maxLon, minLon,
+                        threeMonthsBack);
             }
             return emailPhoneList;
         }
 
         catch( Exception e )
         {
-            e.printStackTrace();
+            logger.error(Constant.ERROR, e);
             throw new DataException("Exception", "Error while computing distance", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

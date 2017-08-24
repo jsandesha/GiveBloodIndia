@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/GiveBloodIndia.iml" filepath="$PROJECT_DIR$/GiveBloodIndia.iml" />
       <module fileurl="file://$PROJECT_DIR$/datastore/datastore.iml" filepath="$PROJECT_DIR$/datastore/datastore.iml" />
+      <module fileurl="file://$PROJECT_DIR$/scheduler/scheduler.iml" filepath="$PROJECT_DIR$/scheduler/scheduler.iml" />
       <module fileurl="file://$PROJECT_DIR$/webservices/webservices.iml" filepath="$PROJECT_DIR$/webservices/webservices.iml" />
     </modules>
   </component>

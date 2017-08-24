@@ -1,15 +1,17 @@
 package com.highpeak.gbi.webservices.utils.mail;
 
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
-import com.highpeak.gbi.webservices.UIResponse.DataException;
-import com.highpeak.gbi.webservices.entities.MailBean;
 
-import java.util.List;
-import java.util.Set;
+import com.highpeak.gbi.webservices.entities.MailBean;
+import com.highpeak.gbi.webservices.uiresponse.DataException;
+import com.highpeak.gbi.webservices.utils.constant.Constant;
 
 /**
  * Util class to send e-mail
@@ -18,6 +20,8 @@ import java.util.Set;
  */
 @Component
 public class GmailSenderUtil {
+
+    private static final Logger logger = LoggerFactory.getLogger(GmailSenderUtil.class);
 
     @Autowired
     private JavaMailSender javaMailSender;
@@ -35,10 +39,11 @@ public class GmailSenderUtil {
 
             javaMailSender.send(mailMessage);
 
-            System.out.println("Mail sent!");
+            logger.info("Email sent");
         }
         catch( Exception e )
         {
+            logger.error(Constant.ERROR, e);
             throw new DataException("Exception", "Error while sending email address", HttpStatus.BAD_GATEWAY);
         }
     }

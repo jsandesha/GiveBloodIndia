@@ -2,30 +2,36 @@ package com.highpeak.gbi.webservices.services.impl;
 
 import java.util.*;
 
-import com.highpeak.gbi.webservices.utils.constant.Constant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.highpeak.gbi.datastore.model.*;
 import com.highpeak.gbi.datastore.repository.AddressRepository;
 import com.highpeak.gbi.datastore.repository.BloodRequestRepository;
 import com.highpeak.gbi.datastore.repository.UserModelRepository;
 import com.highpeak.gbi.datastore.repository.UserToAddressRepository;
-import com.highpeak.gbi.webservices.UIResponse.DataException;
 import com.highpeak.gbi.webservices.entities.Address;
 import com.highpeak.gbi.webservices.entities.MailBean;
 import com.highpeak.gbi.webservices.entities.SMSBean;
 import com.highpeak.gbi.webservices.entities.UserDetailsBean;
 import com.highpeak.gbi.webservices.services.UserServices;
-import com.highpeak.gbi.webservices.utils.Date.DateUtil;
+import com.highpeak.gbi.webservices.uiresponse.DataException;
+import com.highpeak.gbi.webservices.utils.constant.Constant;
+import com.highpeak.gbi.webservices.utils.date.DateUtil;
 import com.highpeak.gbi.webservices.utils.distance.DistanceUtil;
 import com.highpeak.gbi.webservices.utils.mail.GmailSenderUtil;
 import com.highpeak.gbi.webservices.utils.sms.SMSSenderUtil;
+import com.highpeak.gbi.webservices.utils.validator.Validator;
 
 @Service
 @Transactional( rollbackFor = Exception.class )
 public class UserServicesImpl implements UserServices {
+
+    private static final Logger logger = LoggerFactory.getLogger(UserServicesImpl.class);
 
     @Autowired
     private UserModelRepository userModelRepository;
@@ -48,24 +54,11 @@ public class UserServicesImpl implements UserServices {
     @Autowired
     private DistanceUtil distanceUtil;
 
-    /**
-     * Method to perform null check on the input and it's contents
-     * 
-     * @param userDetailsBean
-     * @throws DataException
-     */
-    private void validateRegistrationDetails( UserDetailsBean userDetailsBean ) throws DataException
-    {
-        if( null == userDetailsBean )
-        {
-            throw new DataException("Exception", "Invalid input", HttpStatus.BAD_REQUEST);
-        }
-        if( null == userDetailsBean.getFirstName() || null == userDetailsBean.getMobileNumber()
-                || null == userDetailsBean.getGender() || null == userDetailsBean.getAge() )
-        {
-            throw new DataException("Exception", "All Mandatory fields are required", HttpStatus.BAD_REQUEST);
-        }
-    }
+    @Autowired
+    private Validator validator;
+
+    @Autowired
+    private DateUtil dateUtil;
 
     /**
      * @param userDetailsBean
@@ -77,15 +70,15 @@ public class UserServicesImpl implements UserServices {
     {
         try
         {
-            // validate input
-            validateRegistrationDetails(userDetailsBean);
+            // validate userDetails
+            validator.validateRegistrationDetails(userDetailsBean);
 
             // Check already active user present in the database
             Optional<UserModel> userModelOptional = userModelRepository
                     .findByMobileNumberAndIsActiveTrue(userDetailsBean.getMobileNumber());
             if( userModelOptional.isPresent() )
             {
-                throw new DataException("Exception", "User already registered as donar", HttpStatus.BAD_REQUEST);
+                throw new DataException(Constant.EXCEPTION, Constant.DUPLICATE_DONAR, HttpStatus.BAD_REQUEST);
             }
 
             // Save user to db
@@ -98,33 +91,42 @@ public class UserServicesImpl implements UserServices {
             }
 
             // send confirmation email on seperate thread
-            new Thread(() -> {
-                try
-                {
-                    SMSBean smsBean = new SMSBean();
-                    smsSenderUtil.sendSms(smsBean);
+            sendAlertInAThread(savedUser);
 
-                    System.out.println("Sending mail.......");
-                    sendConfirmationEmail(savedUser.getEmailId());
-                }
-                catch( DataException e )
-                {
-                    e.printStackTrace();
-                }
-            }).start();
             return savedUser;
         }
+
         catch( DataException e )
         {
-            e.printStackTrace();
+            logger.error(Constant.ERROR, e);
             throw e;
         }
         catch( Exception e )
         {
-            e.printStackTrace();
-            throw new DataException("Exception", "Something went wrong while saving user",
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error(Constant.ERROR, e);
+            throw new DataException(Constant.EXCEPTION, Constant.ERROR_SAVING_USER, HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private void sendAlertInAThread( UserModel savedUser )
+    {
+        new Thread(() -> {
+            try
+            {
+                SMSBean smsBean = new SMSBean();
+                smsBean.setTos(Arrays.asList(savedUser.getMobileNumber()));
+                smsBean.setSmsBody("Registration Successfull");
+                smsSenderUtil.sendSms(smsBean);
+
+                logger.info("Sending registration success email to {}", smsBean.getTos().get(0));
+                sendConfirmationEmail(savedUser.getEmailId());
+            }
+            catch( DataException e )
+            {
+                logger.error(Constant.ERROR, e);
+            }
+        }).start();
+
     }
 
     /**
@@ -153,12 +155,12 @@ public class UserServicesImpl implements UserServices {
             Calendar lastBloodDonationDate = null;
             UserModel userModel = new UserModel();
             userModel.setAge(userDetailsBean.getAge());
-            userModel.setBloodGroup(userDetailsBean.getBloodGroup());
-            userModel.setEmailId(userDetailsBean.getEmailId());
-            userModel.setMobileNumber(userDetailsBean.getMobileNumber());
-            userModel.setFirstName(userDetailsBean.getFirstName());
-            userModel.setLastName(userDetailsBean.getLastName());
-            userModel.setGender(userDetailsBean.getGender());
+            userModel.setBloodGroup(userDetailsBean.getBloodGroup().trim());
+            userModel.setEmailId(userDetailsBean.getEmailId().trim());
+            userModel.setMobileNumber(userDetailsBean.getMobileNumber().trim());
+            userModel.setFirstName(userDetailsBean.getFirstName().trim());
+            userModel.setLastName(userDetailsBean.getLastName().trim());
+            userModel.setGender(userDetailsBean.getGender().trim());
             userModel.setIsActive(true);
             userModel.setCreatedAt(DateUtil.getUTCCalenderInstance(System.currentTimeMillis()));
             if( null != userDetailsBean.getLastBloodDonationDate() )
@@ -170,9 +172,8 @@ public class UserServicesImpl implements UserServices {
         }
         catch( Exception e )
         {
-            e.printStackTrace();
-            throw new DataException("Exception", "Something went wrong while saving user",
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error(Constant.ERROR, e);
+            throw new DataException(Constant.EXCEPTION, Constant.ERROR_SAVING_USER, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -188,6 +189,7 @@ public class UserServicesImpl implements UserServices {
             for( Address address : addressList )
             {
                 AddressModel savedAddress;
+                // Check whether the same address is already present in database
                 Optional<AddressModel> addressModelOptional = addressRepository
                         .findByLatitudeAndLongitude(address.getLatitude(), address.getLongitude());
                 if( addressModelOptional.isPresent() )
@@ -196,6 +198,7 @@ public class UserServicesImpl implements UserServices {
                 }
                 else
                 {
+                    //Create and save new address
                     AddressModel addressModel = new AddressModel();
                     addressModel.setCity(address.getCity());
                     addressModel.setLatitude(address.getLatitude());
@@ -204,7 +207,7 @@ public class UserServicesImpl implements UserServices {
 
                     savedAddress = addressRepository.save(addressModel);
                 }
-
+                // Map User to Address
                 UserToAddress userToAddress = new UserToAddress();
                 userToAddress.setUser(user);
                 userToAddress.setAddress(savedAddress);
@@ -214,20 +217,20 @@ public class UserServicesImpl implements UserServices {
         }
         catch( Exception e )
         {
-            e.printStackTrace();
-            throw new DataException("Exception", "Something went wrong while saving user",
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error(Constant.ERROR, e);
+            throw new DataException(Constant.EXCEPTION, Constant.ERROR_SAVING_USER, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     /**
      * To save requester address
+     * 
      * @param addressList
      * @return
      */
     private AddressModel saveAddress( List<Address> addressList )
     {
-        Address address = addressList.get(0);
+        Address address = addressList.get(0);// Only one requesting address is possible
         AddressModel addressModel = new AddressModel();
         addressModel.setZip(address.getZip());
         addressModel.setLongitude(address.getLongitude());
@@ -239,6 +242,7 @@ public class UserServicesImpl implements UserServices {
 
     /**
      * Save requester's details
+     * 
      * @param userDetailsBean
      * @param savedAddress
      * @return
@@ -270,6 +274,7 @@ public class UserServicesImpl implements UserServices {
     {
         try
         {
+            validator.validateRequesterDetails(userDetailsBean);
             //Save the address from where user is requesting for blood
             AddressModel savedAddress = saveAddress(userDetailsBean.getAdresses());
             //Save user's data
@@ -278,14 +283,28 @@ public class UserServicesImpl implements UserServices {
             return sendRequestMessage(userDetailsBean);// send message to donars within the range
 
         }
-        /* catch (DataException e) { e.printStackTrace(); throw e; } */
+        catch( DataException e )
+        {
+            logger.error(Constant.ERROR, e);
+            throw e;
+        }
         catch( Exception e )
         {
-            e.printStackTrace();
-            throw e;
+            logger.error(Constant.ERROR, e);
+            throw new DataException(Constant.EXCEPTION, Constant.SOMETHING_WENT_WRONG,
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
+    /**
+     * Find blood group matching users
+     * 
+     * @param requestingAddress
+     * @param radius
+     * @param bloodGroups
+     * @return
+     * @throws DataException
+     */
     private List<EmailPhone> getPotentialDonarsWithMatch( Address requestingAddress, Integer radius,
             List<String> bloodGroups ) throws DataException
     {
@@ -295,10 +314,19 @@ public class UserServicesImpl implements UserServices {
         }
         catch( DataException e )
         {
+            logger.error(Constant.ERROR, e);
             throw e;
         }
     }
 
+    /**
+     * Get all reachable donars
+     * 
+     * @param requestingAddress
+     * @param radius
+     * @return
+     * @throws DataException
+     */
     private List<EmailPhone> getAllPotentialDonars( Address requestingAddress, Integer radius ) throws DataException
     {
         try
@@ -307,12 +335,14 @@ public class UserServicesImpl implements UserServices {
         }
         catch( DataException e )
         {
+            logger.error(Constant.ERROR, e);
             throw e;
         }
     }
 
     /**
-     *
+     * Choose users according to blood group matching criteria and send request alert
+     * 
      * @param userDetailsBean
      * @return
      * @throws DataException
@@ -331,6 +361,7 @@ public class UserServicesImpl implements UserServices {
                     emailPhoneList = getAllPotentialDonars(requestingAddress, Constant.PRIMARY_RADIUS);
                     if( emailPhoneList.isEmpty() )
                     {
+                        logger.info(Constant.NO_DONAR_FOUND);
                         //increase the radius and search again
                         emailPhoneList = getAllPotentialDonars(requestingAddress, Constant.SECONDARY_RADIUS);
                     }
@@ -341,6 +372,7 @@ public class UserServicesImpl implements UserServices {
                             Constant.BG_MATCH_ABMINUS);
                     if( emailPhoneList.isEmpty() )
                     {
+                        logger.info(Constant.NO_DONAR_FOUND);
                         emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.SECONDARY_RADIUS,
                                 Constant.BG_MATCH_ABMINUS);
                     }
@@ -351,15 +383,18 @@ public class UserServicesImpl implements UserServices {
                             Constant.BG_MATCH_BPLUS);
                     if( emailPhoneList.isEmpty() )
                     {
+                        logger.info(Constant.NO_DONAR_FOUND);
                         emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.SECONDARY_RADIUS,
                                 Constant.BG_MATCH_BPLUS);
                     }
 
                     break;
                 case "B-" :
-                    emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.PRIMARY_RADIUS, Constant.BG_MATCH_BMINUS);
+                    emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.PRIMARY_RADIUS,
+                            Constant.BG_MATCH_BMINUS);
                     if( emailPhoneList.isEmpty() )
                     {
+                        logger.info(Constant.NO_DONAR_FOUND);
                         emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.SECONDARY_RADIUS,
                                 Constant.BG_MATCH_BMINUS);
                     }
@@ -370,33 +405,41 @@ public class UserServicesImpl implements UserServices {
                             Constant.BG_MATCH_APLUS);
                     if( emailPhoneList.isEmpty() )
                     {
+                        logger.info(Constant.NO_DONAR_FOUND);
                         emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.SECONDARY_RADIUS,
                                 Constant.BG_MATCH_APLUS);
                     }
 
                     break;
                 case "A-" :
-                    emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.PRIMARY_RADIUS, Constant.BG_MATCH_AMINUS);
+                    emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.PRIMARY_RADIUS,
+                            Constant.BG_MATCH_AMINUS);
                     if( emailPhoneList.isEmpty() )
                     {
+                        logger.info(Constant.NO_DONAR_FOUND);
                         emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.SECONDARY_RADIUS,
                                 Constant.BG_MATCH_AMINUS);
                     }
 
                     break;
                 case "O+" :
-                    emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.PRIMARY_RADIUS, Constant.BG_MATCH_OPLUS);
+                    emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.PRIMARY_RADIUS,
+                            Constant.BG_MATCH_OPLUS);
                     if( emailPhoneList.isEmpty() )
                     {
+                        logger.info(Constant.NO_DONAR_FOUND);
                         emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.SECONDARY_RADIUS,
                                 Constant.BG_MATCH_OPLUS);
                     }
                     break;
                 case "O-" :
-                    emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.PRIMARY_RADIUS, Constant.BG_MATCH_OMINUS);
+                    emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.PRIMARY_RADIUS,
+                            Constant.BG_MATCH_OMINUS);
                     if( emailPhoneList.isEmpty() )
                     {
-                        emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.SECONDARY_RADIUS, Constant.BG_MATCH_OMINUS);
+                        logger.info(Constant.NO_DONAR_FOUND);
+                        emailPhoneList = getPotentialDonarsWithMatch(requestingAddress, Constant.SECONDARY_RADIUS,
+                                Constant.BG_MATCH_OMINUS);
                     }
 
                     break;
@@ -406,10 +449,15 @@ public class UserServicesImpl implements UserServices {
             }
             Set<String> toAdds = new HashSet<>();
             Set<String> mobileNumbers = new HashSet<>();
+
+            SMSBean smsBean = new SMSBean();
             if( emailPhoneList.isEmpty() )
             {
                 //No donar's found
-                //send no donar found message
+                smsBean.setTos(Arrays.asList(userDetailsBean.getMobileNumber()));
+                smsBean.setSmsBody(
+                        Constant.NO_DONAR_FOUND + dateUtil.getStringDate(userDetailsBean.getBloodRequiredDate()));
+                smsSenderUtil.sendSms(smsBean);
                 return 0;
             }
             else
@@ -420,6 +468,10 @@ public class UserServicesImpl implements UserServices {
                     toAdds.add(emailPhone.getEmailId());
                     mobileNumbers.add(emailPhone.getMobileNumber());
                 }
+                smsBean.setTos(new ArrayList<>(mobileNumbers));
+                smsBean.setSmsBody(
+                        "Urgent blood needed on " + dateUtil.getStringDate(userDetailsBean.getBloodRequiredDate()));
+                smsSenderUtil.sendSms(smsBean);
                 //send e-mail
                 MailBean mailBean = new MailBean();
                 mailBean.setTo(toAdds);
@@ -432,6 +484,7 @@ public class UserServicesImpl implements UserServices {
         }
         catch( DataException e )
         {
+            logger.error(Constant.ERROR, e);
             throw e;
         }
     }
